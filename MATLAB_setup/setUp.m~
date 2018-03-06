@@ -47,11 +47,15 @@ pb.getMotorTicks()
 % pb.setMotorSpeeds(0,55)
 % pause(1.1)
 % pb.getMotorTicks()
-
-% Forwards 1.5 seconds
+% % Forwards 1.5 seconds
+% % Forwards 1.5 seconds
 % pb.setMotorSpeeds(40,40)
+% pause(2)
 % pb.getMotorTicks()
-
- 
+% 
+% %Back
+% % pb.setMotorSpeeds(-1,-1);
+% % pause(2)
+% % 
 %Stop
 pb.stop()
