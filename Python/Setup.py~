@@ -1,6 +1,6 @@
 import time
 import penguinPi as ppi
-ppi.uart.init()
+
 ppi.init()
 
 # Initialise L and R motors

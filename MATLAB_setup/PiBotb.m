@@ -4,6 +4,7 @@ classdef PiBot < handle
         TCP_MOTORS;
         TCP_CAMERA;
         TCP_TAGS;
+        TCP_LOCALISER;
     end
 
     properties (Access = private, Constant)
@@ -13,9 +14,9 @@ classdef PiBot < handle
         PORT_CAMERAS = 43901;
         PORT_TAGS = 43902;
 
-        IMAGE_WIDTH = 640/2;
-        IMAGE_HEIGHT = 480/2;
-        IMAGE_SIZE = PiBot.IMAGE_WIDTH * PiBot.IMAGE_HEIGHT * 3;
+        IMAGE_WIDTH = 640;
+        IMAGE_HEIGHT = 480;
+        IMAGE_SIZE = 640*480*3%PiBot.IMAGE_WIDTH * PiBot.IMAGE_HEIGHT * 3;
 
         FN_ARG_SEPARATOR = ','
         FN_GET_IMAGE = 'getImageFromCamera'
@@ -43,12 +44,18 @@ classdef PiBot < handle
             obj.TCP_MOTORS = tcpip(address, PiBot.PORT_MOTORS, 'NetworkRole', 'client', 'Timeout', PiBot.TIMEOUT);
             obj.TCP_CAMERA = tcpip(address, PiBot.PORT_CAMERAS, 'NetworkRole', 'client', 'Timeout', PiBot.TIMEOUT);
             obj.TCP_TAGS = tcpip(address, PiBot.PORT_TAGS, 'NetworkRole', 'client', 'Timeout', PiBot.TIMEOUT);
-
+            
             % Configure the TCPIP objects
             %obj.TCP_CAMERA.Timeout = PiBot.TIMEOUT;
             %obj.TCP_MOTORS.Timeout = PiBot.TIMEOUT;
             obj.TCP_CAMERA.InputBufferSize = PiBot.IMAGE_SIZE;
+            
 
+        end
+        
+        % Connect to the global localiser - pass in the camera's IP
+        function connectToLocaliser(obj, ip)
+            obj.TCP_LOCALISER = tcpip(ip, 43905, 'NetworkRole', 'client', 'Timeout', 10);
         end
 
         function delete(obj)
@@ -227,6 +234,18 @@ classdef PiBot < handle
 
             % Convert ticks to numerical array
             ticks = sscanf(s,'%d');
+        end
+        
+        
+        function pose = getPoseFromLocaliser(obj)
+            data = ['Pose Please!']; % Ask for pose
+            fopen(obj.TCP_LOCALISER);
+            fprintf(obj.TCP_LOCALISER, data);
+            s = fgetl(obj.TCP_LOCALISER);
+            
+            % Convert pose to numerical array
+            pose = sscanf(s,'%f');
+            fclose(obj.TCP_LOCALISER);
         end
 
         function tags = getTags(obj)
