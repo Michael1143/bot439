@@ -1,0 +1,106 @@
+clear all; close all; clc
+%% Initialise Robot
+IP = '172.19.232.186'; % IP address on robot (manually change if it changes)
+% Password to the lab wifi: egb439123
+LocaliserIP = '172.19.232.138'; % IP address of the lab camera
+
+%Initialise robot object
+if ~exist('pb')
+    pb = PiBot(IP);
+    pb.connectToLocaliser(LocaliserIP); %Connect to localiser
+end
+
+%% Initialise trajectory
+
+loops = 5;
+splineResolution = 20;
+
+A = 0.5/sqrt(2); 
+t = linspace(0,2*pi*loops,splineResolution*loops);
+trajX = (A*sqrt(2).*cos(t))./(((sin(t)).^2)+1);
+trajY = (A*sqrt(2).*cos(t).*sin(t))./(((sin(t)).^2)+1);
+
+
+%% Move to a point
+clear all; close all; clc
+% The centre of the arena is 0,0. It's maximum bounds are 1m in each direction.
+% The localiser return posn in metres in a column vector [x,y,thetaInDegrees]
+% y is towards the wall (and river). x is towards computer next to arena.
+
+% Timestep
+T = 0.15;
+
+% Velocity gain
+Kv = 1;
+
+% Steering Gain
+Kh = 1;
+
+% Trajectory Point Proximity Cut-off
+trajDist = 0.05; % 5cm
+
+% initial position
+xC = (rand * 2) - 1;
+yC = (rand * 2) - 1;
+thC = (rand * 2 * pi) - pi;
+
+% goal position
+xG = trajX(1);
+yG = trajY(1);
+
+
+figure()
+hold on;
+
+plot(xC,yC,'r+');
+plot(xG,yG,'b+');
+axis([-1,1,-1,1]);
+
+%% Movement loop
+
+pnt = 1;
+
+dist = 1;
+while dist > 0.1 %stop when within 10cm
+   
+    % Get pose from localiser
+    pos = pb.getPoseFromLocaliser();
+    xC = pos(1);
+    yC = pos(2);
+    thC = deg2rad(pos(3));
+    
+    % Get position of goal (next point in trajectory spline) if within a certain distance
+    if (abs(abs(xG) - abs(xC)) <= trajDist)
+        pnt = pnt + 1;
+        xG = trajX(min(pnt,length(trajX))); % use minimum to prevent refernce outside bounds of vector
+        yG = trajY(min(pnt,length(trajY)));
+    end
+  
+    % calculate velocity
+    dist = sqrt((xG-xC).^2+(yG-yC).^2);              % distance to goal from current pos. max value is 2*sqrt(2) based upon size of the arena.
+    v = Kv*dist;                                     % gain adjusted velocity
+    v = ((max(min(v,2*sqrt(2)),0))/(2*sqrt(2)))*100; % cap speed at 2*sqrt(2), then normalise into 0 -> 100 scale 
+    
+    % calculate steering angle
+    thG = atan2((yG-yC),(xG-xC));                   % Angle of vector parallel to goal from current location
+    thDiff = thG - thC;                             % difference between current pose's angle and the desired angle
+    thDiffVec = [thDiff,(-thDiff/abs(thDiff))*(2*pi - abs(thDiff))];    % A vector containing the two angles towards the goal (angles from the two ways around the circle you can go to reach your target)
+    [m,ii] = min(abs(thDiffVec));                   % find the index of the angle of least magnitude towards goal. IE shortest rotational path to goal.
+    thDiff = thDiffVec(ii);                         % return smallest angle towards goal (to prevent robot form going 350 degrees when attempting to turn 10 degrees to the right)
+    
+    steeringAngle = Kh * (thDiff);                  % gain adjusted steering angle
+    steeringAngle = max(min(steeringAngle,pi),-pi); % steering angle, limited to between pi and -pi
+    
+    % calculate motor inputs 
+    speedL = v * max(min((((steeringAngle/-pi)*2)+1),1),-1); % these two lines simply calculate the how much each motor
+    speedR = v * max(min((((steeringAngle/pi)*2)+1),1),-1);  % should be 'turned-on' given a desired steering angle (from pi -> -pi)
+                                                             % outputs a value from -1 -> 1. negative values drive wheels in reverse.                                                       
+    % update motor inputs
+    pb.setMotorSpeeds(speedL,speedR);
+    
+    % wait for the time step
+    pause(T);   % can be decreased to increase the rate at which the wheel velocities are calculated.
+    
+end
+
+
